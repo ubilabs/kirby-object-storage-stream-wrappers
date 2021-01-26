@@ -11,7 +11,7 @@
 ### File System Abstraction Layer in Kirby
 A naive approach to tackle this, would be to add a **file system abstraction layer (possibly in the form of an interface) to Kirby**, which could have different implementations for filesystem alternatives like a proper database (which is a [highly requested feature in the Kirby community](https://kirby.nolt.io/22)) or object storage. This is absolutely possible, but also requires a rather large modifications to Kirby, and will take some time to implement.
 
-* 👍: Adaptable to other implementations (like a database)
+* 👍: Adaptable to other data layers (like a database)
 * 👎: High effort
 
 ### Operating System Level Adapters
@@ -29,3 +29,47 @@ PHP offers a solution to this problem right at the language level – it's calle
 * 👎: None (theoretically)
 
 Thankfully, Object storage providers have already created stream wrapper implementations for PHP, which are ready to use ([Google Cloud Storage Wrapper](https://github.com/googleapis/google-cloud-php/tree/master/Storage#stream-wrapper), [Amazon S3 Wrapper](https://docs.aws.amazon.com/sdk-for-php/v3/developer-guide/s3-stream-wrapper.html))
+
+## Problems while implementing Object Storage Stream Wrappers in Kirby
+Theoretically, using Stream Wrappers to make Kirby work with object storage should only require a couple of lines of configuration/code – however it's not that easy.
+
+### Registering a Stream Wrapper and Configuring Roots
+After installing the Google Cloud Storage wrapper via `composer require google/cloud-storage` it can be registered in Kirbys `index.php`. To authenticate with the cloud storage, a service account with proper privileges (read and write) is needed. The keyfile for this service account needs to be added to the main directory.
+
+
+Also, we need to adjust Kirby's root folders, so Kirby will use the proper, modified stream identifiers (`gs://`) for all file system calls internally.
+
+```php
+<?php
+
+use Google\Cloud\Storage\StorageClient;
+
+require __DIR__ . '/kirby/bootstrap.php';
+
+function register_stream_wrapper()
+{
+  $client = new StorageClient([
+    'keyFile' => json_decode(file_get_contents('./keyfile.json'), true)
+  ]);
+  $client->registerStreamWrapper();
+}
+
+register_stream_wrapper();
+
+$kirby = new Kirby([
+  'roots' => [
+    'media' => 'gs://gcs-kirby-test/media',
+    'content' => 'gs://gcs-kirby-test/content'
+  ]
+]);
+
+echo $kirby->render();
+```
+
+In a perfect world, this would be it and Kirby should now work with the Object storage. But, there are some problems at this stage:
+
+### Incompatibilities between Stream Wrappers and "actual" file systems
+
+Unfortunately, there are some differences between actual file systems and stream wrapped file systems:
+
+#### realpath()
