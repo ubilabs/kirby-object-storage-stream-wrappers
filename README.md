@@ -5,7 +5,7 @@
 
 ## Motivation / Why?
 * Modern "serverless" infrastructure like "Platform as a Service" products (e.g. Google App Engine), often have no persistent file system storage available
-* Storage limitations / very large content and media files
+* Storage limitations / very large content and media folders (Object storage can scale much easier, and can sometimes be cheaper)
 
 ## Possible solutions
 ### File System Abstraction Layer in Kirby
