@@ -70,6 +70,12 @@ In a perfect world, this would be it and Kirby should now work with the Object s
 
 ### Incompatibilities between Stream Wrappers and "actual" file systems
 
-Unfortunately, there are some differences between actual file systems and stream wrapped file systems:
+Unfortunately, there are some differences between actual file systems and stream wrapped file systems, so not **every** file system method is supported. [Google lists the unsupported methods](https://cloud.google.com/appengine/docs/standard/php/googlestorage/advanced#filesystem_functions_support_on_cloud_storage), which are:
 
-#### realpath()
+```
+chgrp,chmod,chown,disk_free_space,disk_total_space,diskfreespace,fileatime,filectime,filegroup,fileinode,fileowner,flock,fputs,ftruncate,is_executable,is_link,is_writeable,lchgrp,lchown,link,linkinfo,pclose,popen,readlink,realpath,set_file_buffer,symlink,touch
+```
+
+The reason why these are unsupported is not that the authors of the Stream Wrapper implementations at Amazon/Google/Microsoft are lazy, but rather that these methods conceptually do not make sense in a object storage context (e.g. there is no such thing as a `symlink` or `lock` or relative paths in object storage).
+
+
