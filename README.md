@@ -1,9 +1,9 @@
 # Running Kirby CMS on Object Storage via PHP Stream Wrappers
 
 ## Problem
-[Kirby CMS](https://github.com/getkirby/kirby) is a popular flat file content management system written in PHP. Instead of a database, it uses the file system to store content and media. This makes it rather easy to setup and deploy on local dev machines, servers and webspace products. It would be nice, if Kirby was optionally also able to store all its content and media files on Object Storage (like Amazons AWS S3, Google Cloud Storage or Microsoft Azure Storage) for persistence.
+[Kirby CMS](https://github.com/getkirby/kirby) is a popular flat file content management system written in PHP. Instead of a database, it uses the file system to store content and media. This makes it rather easy to setup and deploy on local dev machines, servers and webspace products. It would be nice, if Kirby was optionally also able to store all its content and media files on object storage (like Amazon AWS S3, Google Cloud Storage or Microsoft Azure Storage) for persistence.
 
-Kirby already has a mechanism called [Virtual Pages](https://getkirby.com/docs/guide/virtual-pages), which makes it possible to get portions of your content from object storage, databases, etc. However, with Virtual Pages it is not possible to have your whole content and media folder on object storage.
+Kirby already has a mechanism called [Virtual Pages](https://getkirby.com/docs/guide/virtual-pages), which allows to get portions of your content from object storage, databases, etc. However, with virtual pages it is not possible to have your whole content and media folder on object storage.
 
 ## Motivation / Why?
 * Modern "serverless" infrastructure like "Platform as a Service" products (e.g. Google App Engine), often have no persistent file system storage available
@@ -78,7 +78,7 @@ Unfortunately, there are some differences between actual file systems and stream
 chgrp,chmod,chown,disk_free_space,disk_total_space,diskfreespace,fileatime,filectime,filegroup,fileinode,fileowner,flock,fputs,ftruncate,is_executable,is_link,is_writeable,lchgrp,lchown,link,linkinfo,pclose,popen,readlink,realpath,set_file_buffer,symlink,touch
 ```
 
-The reason why these are unsupported is not that the authors of the Stream Wrapper implementations at Amazon/Google/Microsoft are lazy, but rather that these methods conceptually do not make sense in an object storage context (e.g. there is no such thing as a `symlink` or `lock` or relative paths in object storage).
+⚠️ The reason why these are unsupported is not that the authors of the Stream Wrapper implementations at Amazon/Google/Microsoft are lazy, but rather that these methods **conceptually do not make sense in an object storage context (e.g. there is no such thing as a `symlink` or `lock` or relative paths in object storage)**.
 
 Most of these methods are not used in Kirby anyway, so they can be ignored. But Kirby does use some of these, namely:
 * `realpath()`
@@ -88,6 +88,8 @@ Most of these methods are not used in Kirby anyway, so they can be ignored. But 
 * `unlink()`
 
 All these calls will fail when called with a `gs://` identifier as parameter. So all the locations where these methods are used, need to be patched/modified to make Kirby work with stream wrappers. I've identified about 10 files within the Kirby core, where these methods are called, that would need to be adjusted. Sometimes this is as easy as adding another check whether the given parameter begins with `gs://` and sometimes it is a little more complicated.
+
+Unfortunately the necessary modifications to these method calls can not be done via a Kirby plugin (b/c there are no hooks for every file system call). So currently I don't see a way to add this functionality only by using a Kirby plugin. Modification of Kirbys core source code is necessary for this to work. But all of these problems will also arise, once Kirby decides to adopt any kind of file system abstraction layer (a database has many of the same conceptional drawbacks that object storag hase – e.b. no symlinks or locks). So these modifications might need to get tackled anyway, if Kirby is to move to a more modular/adaptable file system approach.
 
 
 
