@@ -23,7 +23,7 @@ Another way to do this, are **operating system level adapters** to emulate a fil
 ### Language Level Adapaters (PHP Stream Wrappers)
 In this experiment I will focus on yet another approach, which combines many aspects of these two aforementioned solutions: **Adapter on the language level aka PHP Stream Wrappers**.
 
-PHP offers a solution to this problem right at the language level – it's called [Stream Wrappers](https://www.php.net/manual/en/wrappers.php). It allows us to make regular file system calls (e.g. `fopen()`, `fwrite()` or `file_get_contents()`) work with non-filesystem data layers – like an Object storage.
+PHP offers a rather unknown solution to this problem right at the language level – it's called [Stream Wrappers](https://www.php.net/manual/en/wrappers.php). It allows us to make regular file system calls (e.g. `fopen()`, `fwrite()` or `file_get_contents()`) work with non-filesystem data layers – like an object storage.
 
 * 👍: No OS privileges needed, runs on language level
 * 👎: None (theoretically)
@@ -77,5 +77,14 @@ chgrp,chmod,chown,disk_free_space,disk_total_space,diskfreespace,fileatime,filec
 ```
 
 The reason why these are unsupported is not that the authors of the Stream Wrapper implementations at Amazon/Google/Microsoft are lazy, but rather that these methods conceptually do not make sense in a object storage context (e.g. there is no such thing as a `symlink` or `lock` or relative paths in object storage).
+
+Most of these methods are not used in Kirby anyway, so they can be ignored. But Kirby does use some of these, namely:
+* `realpath()`
+* `flock()`
+* `ftruncate()`
+* `symlink()`
+* `unlink()`
+
+All these calls will fail when called with a `gs://` identifier as parameter. So all the locations where these methods are used, need to be patched/modified to make Kirby work with stream wrappers. I've identified about 10 files within the Kirby core, where these methods are called, and that need to be adjusted. Sometimes this is as easy as adding another check whether the given parameter begins with `gs://` and sometimes it is a little more complicated.
 
 
