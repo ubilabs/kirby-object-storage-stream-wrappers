@@ -98,6 +98,25 @@ I tried to manually patch all unsupported file system methods and got a working 
 
 Now, after applying the listed changes to the Kirby core, you will have a Kirby instance that gets its content and media from Object Storage, but you will also notice **that it's incredibly slow (page load times between 30 and 60 seconds)**. I'm not entirely sure, what the reason for this is. Object storage is slow compared to a file system (typically a couple hundred ms to request text files from Object storage), but not THAT slow. Some more debugging is needed to find out, why it's so incredible slow. One of the reasons is a conceptual problem: Kirby still serves as a Proxy for your requests: Kirby still uses its own URL for assets, e.g. `http://kirby.test/media/pages/photography/sky/b13735b7f3-1611658788/coconut-milkyway.jpg`, not the public link for the object storage location. Unfortunately, we need to do it this way, so Kirby can still trigger thumbnail generation, when a thumb is requested. If we were to directly embed the storage URL, no thumbnails would be generated (we could probably fix this by [generating thumbnails on upload](https://github.com/bnomei/kirby3-janitor/wiki/Setup:-Thumbs-on-Upload), e.g. via the Kirby janitor plugin).
 
+### Getting the panel to work
+Unlike the rest of Kirby, the panel assets (JS and CSS files) are normally served statically from the filesystem. Kirby just uses the `$assetUrl` variable in the templates as a link to the static files. Since we're not serving them from the local filesystem anymore, but directly from the Object storage, we need to modify `$assetUrl` in `kirby\src\Cms\Panel.php` and adjust the `panel` link in `index.php`.
+
+```
+'assetUrl'  => $kirby->url('panel') .'/'. $kirby->versionHash(),
+
+```
+```
+$kirby = new Kirby([
+  'roots' => [
+    'media' => 'gs://gcs-kirby-test/media',
+    'content' => 'gs://gcs-kirby-test/content'
+  ],
+  'urls' => [
+    'panel' => 'https://storage.googleapis.com/gcs-kirby-test/media/panel'
+  ]
+]);
+```
+
 ## Summary
 Is it possible to get Kirbys content and media folders from object storage? Yes! Is it practical, yet? No! To make this process easier, Kirby needs to make some changes to its core, so we can change the implementation of unsupported file system calls for object storage. As soon as there is such a file system abstraction (like a PHP interface), it will be pretty easy to implement this functionality with Stream Wrappers via a Plugin and make it usable for everyone.
 
