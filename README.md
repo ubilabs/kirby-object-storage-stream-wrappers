@@ -92,12 +92,14 @@ All these calls will fail when called with a `gs://` identifier as parameter. So
 
 Unfortunately the necessary modifications to these method calls can not be applied via a Kirby plugin (b/c there is no mechanism to hook into Kirbys internal file system calls). **Modification of Kirbys core source code is necessary for this to work.** But all of these problems will also arise, once Kirby decides to adopt any kind of file system abstraction layer (a database has many of the same conceptional drawbacks that object storag hase – e.g. no symlinks or locks). So these modifications might need to get tackled anyway, if Kirby wants to move to a more modular/adaptable file system approach in the future.
 
+I tried to manually patch all unsupported file system methods and got a working Kirby starterkit as a result, even though this is very brittle. Stuff might break in areas that I haven't tested, yet. So I would not advise you to recreate this – this is just an experiment and not usable code. The modified code can be found in xxx.patch.
+
 ## It works! But it's really slow.
 
 Now, after applying the listed changes to the Kirby core, you will have a Kirby instance that gets its content and media from Object Storage, but you will also notice **that it's incredibly slow (page load times between 30 and 60 seconds)**. I'm not entirely sure, what the reason for this is. Object storage is slow compared to a file system (typically a couple hundred ms to request text files from Object storage), but not THAT slow. Some more debugging is needed to find out, why it's so incredible slow. One of the reasons is a conceptual problem: Kirby still serves as a Proxy for your requests: Kirby still uses its own URL for assets, e.g. `http://kirby.test/media/pages/photography/sky/b13735b7f3-1611658788/coconut-milkyway.jpg`, not the public link for the object storage location. Unfortunately, we need to do it this way, so Kirby can still trigger thumbnail generation, when a thumb is requested. If we were to directly embed the storage URL, no thumbnails would be generated (we could probably fix this by [generating thumbnails on upload](https://github.com/bnomei/kirby3-janitor/wiki/Setup:-Thumbs-on-Upload), e.g. via the Kirby janitor plugin).
 
 ## Summary
-Is it possible to get Kirbys content and media folders from object storage? Yes! Is it practical, yet? No! To make this process easier, Kirby needs to make some changes to its core, so we can change the implementation of unsupported file system calls for object storage. As soon as there is such a file system abstraction, it will be pretty easy to implement this functionality via a Plugin and make it usable for everyone.
+Is it possible to get Kirbys content and media folders from object storage? Yes! Is it practical, yet? No! To make this process easier, Kirby needs to make some changes to its core, so we can change the implementation of unsupported file system calls for object storage. As soon as there is such a file system abstraction (like a PHP interface), it will be pretty easy to implement this functionality with Stream Wrappers via a Plugin and make it usable for everyone.
 
 
 
