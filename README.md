@@ -92,7 +92,7 @@ All these calls will fail when called with a `gs://` identifier as parameter. So
 
 Unfortunately the necessary modifications to these method calls can not be applied via a Kirby plugin (b/c there is no mechanism to hook into Kirbys internal file system calls). **Modification of Kirbys core source code is necessary for this to work.** But all of these problems will also arise, once Kirby decides to adopt any kind of file system abstraction layer (a database has many of the same conceptional drawbacks that object storag hase – e.g. no symlinks or locks). So these modifications might need to get tackled anyway, if Kirby wants to move to a more modular/adaptable file system approach in the future.
 
-I tried to manually patch all unsupported file system methods and got a working Kirby starterkit as a result, even though this is very brittle. Stuff might break in areas that I haven't tested, yet. So I would not advise you to recreate this – this is just an experiment and not usable code. The modified code can be found in xxx.patch.
+I tried to manually patch all unsupported file system methods and got a working Kirby starterkit as a result, even though this is very brittle. Stuff might break in areas that I haven't tested, yet. So I would not advise you to recreate this – this is just an experiment and not usable code. The modified code can be found in [kirby_object_storage.patch](kirby_object_storage.patch).
 
 ## It works! But it's really slow.
 
