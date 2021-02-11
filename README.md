@@ -101,8 +101,20 @@ Now, after applying the listed changes to the Kirby core, you will have a Kirby 
 ### Getting the panel to work
 Unlike the rest of Kirby, the panel assets (JS and CSS files) are normally served statically from the filesystem. Kirby just uses the `$assetUrl` variable in the templates as a link to the static files. Since we're not serving them from the local filesystem anymore, but directly from the Object storage, we need to modify `$assetUrl` in `kirby\src\Cms\Panel.php` and adjust the `panel` link in `index.php`.
 
-```php
-'assetUrl'  => $kirby->url('panel') .'/'. $kirby->versionHash(),
+```diff
+diff --git a/kirby/src/Cms/Panel.php b/kirby/src/Cms/Panel.php
+index 4941a76..851f5de 100755
+--- a/kirby/src/Cms/Panel.php
++++ b/kirby/src/Cms/Panel.php
+@@ -114,7 +114,7 @@ class Panel
+         $view = new View($kirby->root('kirby') . '/views/panel.php', [
+             'kirby'     => $kirby,
+             'config'    => $kirby->option('panel'),
+-            'assetUrl'  => $kirby->url('media') . '/panel/' . $kirby->versionHash(),
++            'assetUrl'  => $kirby->url('panel') .'/'. $kirby->versionHash(),
+             'customCss' => static::customCss($kirby),
+             'icons'     => static::icons($kirby),
+             'pluginCss' => $plugins->url('css'),
 ```
 ```php
 $kirby = new Kirby([
