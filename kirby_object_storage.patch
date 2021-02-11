@@ -1,0 +1,199 @@
+diff --git a/index.php b/index.php
+index 957782b..f4aaaa2 100644
+--- a/index.php
++++ b/index.php
+@@ -1,5 +1,27 @@
+ <?php
+ 
++use Google\Cloud\Storage\StorageClient;
++
+ require __DIR__ . '/kirby/bootstrap.php';
+ 
+-echo (new Kirby)->render();
+\ No newline at end of file
++function register_stream_wrapper()
++{
++  $client = new StorageClient([
++    'keyFile' => json_decode(file_get_contents('./keyfile.json'), true)
++  ]);
++  $client->registerStreamWrapper();
++}
++
++register_stream_wrapper();
++
++$kirby = new Kirby([
++  'roots' => [
++    'media' => 'gs://gcs-kirby-test/media',
++    'content' => 'gs://gcs-kirby-test/content'
++  ],
++  'urls' => [
++    'panel' => 'https://storage.googleapis.com/gcs-kirby-test/media/panel'
++  ]
++]);
++
++echo $kirby->render();
+diff --git a/kirby/src/Cms/ContentLocks.php b/kirby/src/Cms/ContentLocks.php
+index bd67918..9ff3142 100755
+--- a/kirby/src/Cms/ContentLocks.php
++++ b/kirby/src/Cms/ContentLocks.php
+@@ -61,7 +61,12 @@ class ContentLocks
+         }
+ 
+         $handle = $this->handles[$file];
+-        $result = flock($handle, LOCK_UN) && fclose($handle);
++        if (!str_starts_with($file, 'gs://')) {
++            $result = flock($handle, LOCK_UN) && fclose($handle);
++        } else {
++            $result = fclose($handle);
++        }
++        
+ 
+         if ($result !== true) {
+             throw new Exception('Unexpected file system error.'); // @codeCoverageIgnore
+@@ -138,15 +143,17 @@ class ContentLocks
+             return null;
+         }
+ 
+-        $handle = @fopen($file, 'c+b');
++        $handle = @fopen($file, 'wb');
+         if (is_resource($handle) === false) {
+             throw new Exception('Lock file ' . $file . ' could not be opened.'); // @codeCoverageIgnore
+         }
+ 
+-        // lock the lock file exclusively to prevent changes by other threads
+-        $result = flock($handle, LOCK_EX);
+-        if ($result !== true) {
+-            throw new Exception('Unexpected file system error.'); // @codeCoverageIgnore
++        if (!str_starts_with($file, 'gs://')) {
++            // lock the lock file exclusively to prevent changes by other threads
++            $result = flock($handle, LOCK_EX);
++            if ($result !== true) {
++                throw new Exception('Unexpected file system error.'); // @codeCoverageIgnore
++            }
+         }
+ 
+         return $this->handles[$file] = $handle;
+@@ -187,11 +194,11 @@ class ContentLocks
+             if (
+                 isset($data['lock']) === false &&
+                 (isset($data['unlock']) === false ||
+-                count($data['unlock']) === 0)
++                    count($data['unlock']) === 0)
+             ) {
+                 unset($this->data[$file][$id]);
+ 
+-            // there is empty unlock data, but still lock data
++                // there is empty unlock data, but still lock data
+             } elseif (
+                 isset($data['unlock']) === true &&
+                 count($data['unlock']) === 0
+diff --git a/kirby/src/Cms/Dir.php b/kirby/src/Cms/Dir.php
+index 7c42c62..d4ebf48 100755
+--- a/kirby/src/Cms/Dir.php
++++ b/kirby/src/Cms/Dir.php
+@@ -1,6 +1,7 @@
+ <?php
+ 
+ namespace Kirby\Cms;
++use Kirby\Toolkit\F;
+ 
+ /**
+  * Extension of the Toolkit `Dir` class with a new
+@@ -32,7 +33,7 @@ class Dir extends \Kirby\Toolkit\Dir
+      */
+     public static function inventory(string $dir, string $contentExtension = 'txt', array $contentIgnore = null, bool $multilang = false): array
+     {
+-        $dir = realpath($dir);
++        $dir = F::realpathStreamWrapper($dir);
+ 
+         $inventory = [
+             'children' => [],
+diff --git a/kirby/src/Cms/Panel.php b/kirby/src/Cms/Panel.php
+index 4941a76..851f5de 100755
+--- a/kirby/src/Cms/Panel.php
++++ b/kirby/src/Cms/Panel.php
+@@ -114,7 +114,7 @@ class Panel
+         $view = new View($kirby->root('kirby') . '/views/panel.php', [
+             'kirby'     => $kirby,
+             'config'    => $kirby->option('panel'),
+-            'assetUrl'  => $kirby->url('media') . '/panel/' . $kirby->versionHash(),
++            'assetUrl'  => $kirby->url('panel') .'/'. $kirby->versionHash(),
+             'customCss' => static::customCss($kirby),
+             'icons'     => static::icons($kirby),
+             'pluginCss' => $plugins->url('css'),
+diff --git a/kirby/src/Toolkit/Dir.php b/kirby/src/Toolkit/Dir.php
+index 7b57c62..da090b7 100755
+--- a/kirby/src/Toolkit/Dir.php
++++ b/kirby/src/Toolkit/Dir.php
+@@ -140,7 +140,7 @@ class Dir
+     public static function index(string $dir, bool $recursive = false, array $ignore = null, string $path = null)
+     {
+         $result = [];
+-        $dir    = realpath($dir);
++        $dir    = F::realpathStreamWrapper($dir);
+         $items  = static::read($dir);
+ 
+         foreach ($items as $item) {
+@@ -349,7 +349,7 @@ class Dir
+      */
+     public static function remove(string $dir): bool
+     {
+-        $dir = realpath($dir);
++        $dir = F::realpathStreamWrapper($dir);
+ 
+         if (is_dir($dir) === false) {
+             return true;
+diff --git a/kirby/src/Toolkit/F.php b/kirby/src/Toolkit/F.php
+index 098febe..12ddc38 100755
+--- a/kirby/src/Toolkit/F.php
++++ b/kirby/src/Toolkit/F.php
+@@ -595,6 +595,19 @@ class F
+         return $newRoot;
+     }
+ 
++    /**
++     * Returns a realpath() when it's a local file.
++     * Returns an absolute path when it's a stream wrapper resource.
++     *
++     * @param string $file
++     */
++    public static function realpathStreamWrapper($file) {
++        if (str_starts_with($file, 'gs://')) {
++            return $file;
++        }
++        return realpath($file);
++    }
++
+     /**
+      * Returns the absolute path to the file if the file can be found.
+      *
+@@ -604,14 +617,14 @@ class F
+      */
+     public static function realpath(string $file, string $in = null)
+     {
+-        $realpath = realpath($file);
++        $realpath = static::realpathStreamWrapper($file);
+ 
+         if ($realpath === false || is_file($realpath) === false) {
+             throw new Exception(sprintf('The file does not exist at the given path: "%s"', $file));
+         }
+ 
+         if ($in !== null) {
+-            $parent = realpath($in);
++            $parent = static::realpathStreamWrapper($in);
+ 
+             if ($parent === false || is_dir($parent) === false) {
+                 throw new Exception(sprintf('The parent directory does not exist: "%s"', $in));
+diff --git a/kirby/src/Toolkit/File.php b/kirby/src/Toolkit/File.php
+index 83b8608..976e995 100755
+--- a/kirby/src/Toolkit/File.php
++++ b/kirby/src/Toolkit/File.php
+@@ -246,7 +246,7 @@ class File
+      */
+     public function realpath(): string
+     {
+-        return realpath($this->root);
++        return F::realpathStreamWrapper($this->root);
+     }
+ 
+     /**
